@@ -140,18 +140,47 @@ export class RoomManager {
     this.assign(room, player);
   }
 
-  // 部屋を作る。作成者に部屋IDを返して待機させる。
-  create(player) {
-    const room = new Room(this.generateId(), this.dict, this.words);
-    this.rooms.set(room.id, room);
+  // 合言葉を正規化する（前後空白を除き大文字化）。
+  normalizeId(roomId) {
+    return (roomId ?? "").trim().toUpperCase();
+  }
+
+  // 合言葉として使えるか検証する。問題があればエラー情報を返す。
+  validateId(id) {
+    if (id.length > 12) return { code: "INVALID_CODE", message: "合言葉は12文字までです" };
+    if (/\s/.test(id)) return { code: "INVALID_CODE", message: "合言葉に空白は使えません" };
+    return null;
+  }
+
+  // 部屋を作る。合言葉を指定できる（空ならランダム生成）。作成者に部屋IDを返して待機させる。
+  create(player, roomId) {
+    const requested = this.normalizeId(roomId);
+    let id;
+    if (requested) {
+      const err = this.validateId(requested);
+      if (err) {
+        player.send({ type: "error", errorCode: err.code, message: err.message });
+        return;
+      }
+      if (this.rooms.has(requested)) {
+        player.send({ type: "error", errorCode: "ROOM_TAKEN", message: "その合言葉は使用中です。別の言葉にしてください" });
+        return;
+      }
+      id = requested;
+    } else {
+      id = this.generateId();
+    }
+
+    const room = new Room(id, this.dict, this.words);
+    this.rooms.set(id, room);
     this.assign(room, player);
-    player.send({ type: "created", roomId: room.id });
+    player.send({ type: "created", roomId: id });
     player.send({ type: "waiting", message: "対戦相手を待っています..." });
   }
 
   // 部屋IDを指定して参加する。
   join(player, roomId) {
-    const room = this.rooms.get((roomId ?? "").toUpperCase());
+    const room = this.rooms.get(this.normalizeId(roomId));
     if (!room || room.id.startsWith("q-")) {
       player.send({ type: "error", errorCode: "ROOM_NOT_FOUND", message: "その部屋は見つかりません" });
       return;

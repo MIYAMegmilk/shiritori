@@ -44,14 +44,33 @@
     <section id="multi" class="panel hidden">
       <!-- セットアップ -->
       <div id="multi-setup">
-        <form id="match-form" autocomplete="off">
-          <input id="multi-name" type="text" placeholder="名前を入力" maxlength="12" />
-          <button type="submit">マッチング開始</button>
+        <input id="multi-name" type="text" placeholder="名前を入力" maxlength="12" />
+
+        <button type="button" id="quick-btn" class="primary-btn">さっと対戦（ランダム）</button>
+
+        <p class="divider">または 合言葉で友達と対戦</p>
+
+        <input id="custom-code" type="text" placeholder="合言葉（任意・空欄でランダム）" maxlength="12" />
+        <button type="button" id="create-btn" class="sub-btn">部屋を作る</button>
+
+        <form id="join-form" autocomplete="off" class="join-row">
+          <input id="room-code" type="text" placeholder="合言葉" maxlength="12" />
+          <button type="submit" class="sub-btn">部屋に入る</button>
         </form>
+
+        <p id="setup-message" class="message"></p>
       </div>
 
       <!-- 待機中 -->
       <div id="multi-waiting" class="hidden">
+        <div id="share-box" class="hidden">
+          <p class="label">この合言葉を相手に伝えてください</p>
+          <p id="room-code-display" class="room-code-display"></p>
+          <div class="share-url-row">
+            <input id="share-url" type="text" readonly />
+            <button type="button" id="copy-btn" class="sub-btn">URLをコピー</button>
+          </div>
+        </div>
         <p class="waiting">対戦相手を待っています...</p>
       </div>
 

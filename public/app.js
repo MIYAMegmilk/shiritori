@@ -101,10 +101,19 @@ resetBtn.addEventListener("click", reset);
 loadState();
 
 // ===== 対戦 =====
-const matchForm = document.getElementById("match-form");
 const nameInput = document.getElementById("multi-name");
+const quickBtn = document.getElementById("quick-btn");
+const createBtn = document.getElementById("create-btn");
+const customCodeInput = document.getElementById("custom-code");
+const joinForm = document.getElementById("join-form");
+const roomCodeInput = document.getElementById("room-code");
+const setupMessageEl = document.getElementById("setup-message");
 const setupEl = document.getElementById("multi-setup");
 const waitingEl = document.getElementById("multi-waiting");
+const shareBoxEl = document.getElementById("share-box");
+const roomCodeDisplayEl = document.getElementById("room-code-display");
+const shareUrlEl = document.getElementById("share-url");
+const copyBtn = document.getElementById("copy-btn");
 const mGameEl = document.getElementById("multi-game");
 const mTurnEl = document.getElementById("multi-turn");
 const mCurrentEl = document.getElementById("multi-current-word");
@@ -148,6 +157,14 @@ function endMulti(turnText, messageText) {
 
 function handleServerMessage(msg) {
   switch (msg.type) {
+    case "created": {
+      // 部屋作成 → 合言葉と共有URLを表示
+      const url = `${location.origin}/?room=${encodeURIComponent(msg.roomId)}`;
+      roomCodeDisplayEl.textContent = msg.roomId;
+      shareUrlEl.value = url;
+      show(shareBoxEl, true);
+      break;
+    }
     case "waiting":
       show(waitingEl, true);
       break;
@@ -165,8 +182,18 @@ function handleServerMessage(msg) {
       mInputEl.value = "";
       break;
     case "error":
-      mMessageEl.textContent = msg.message;
-      mMessageEl.classList.add("error");
+      if (mGameEl.classList.contains("hidden")) {
+        // マッチング前のエラー（部屋が無い・満員）→ セットアップに戻す
+        finished = true;
+        setupMessageEl.textContent = msg.message;
+        setupMessageEl.classList.add("error");
+        show(waitingEl, false);
+        show(setupEl, true);
+        if (ws) ws.close();
+      } else {
+        mMessageEl.textContent = msg.message;
+        mMessageEl.classList.add("error");
+      }
       break;
     case "gameover": {
       // 自分の手番中に終了した側が負け（「ん」終わり・重複を出した本人）
@@ -184,19 +211,52 @@ function handleServerMessage(msg) {
   }
 }
 
-matchForm.addEventListener("submit", (e) => {
-  e.preventDefault();
+// 名前を添えてWebSocketを開き、最初のメッセージ(quick/create/join)を送る。
+function openWs(initialMessage) {
   const name = nameInput.value.trim() || "プレイヤー";
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   ws = new WebSocket(`${proto}//${location.host}/ws`);
   finished = false;
-  ws.onopen = () => ws.send(JSON.stringify({ type: "join", name }));
+  setupMessageEl.textContent = "";
+  ws.onopen = () => ws.send(JSON.stringify({ ...initialMessage, name }));
   ws.onmessage = (ev) => handleServerMessage(JSON.parse(ev.data));
   ws.onclose = () => {
-    if (!finished) endMulti("", "接続が切れました。");
+    // 対戦中に切れた場合だけ通知する（マッチング前の意図的なcloseは無視）
+    if (!finished && !mGameEl.classList.contains("hidden")) {
+      endMulti("", "接続が切れました。");
+    }
   };
   show(setupEl, false);
   show(waitingEl, true);
+}
+
+quickBtn.addEventListener("click", () => openWs({ type: "quick" }));
+createBtn.addEventListener("click", () => {
+  const custom = customCodeInput.value.trim();
+  openWs(custom ? { type: "create", roomId: custom } : { type: "create" });
+});
+
+joinForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const code = roomCodeInput.value.trim();
+  if (!code) {
+    setupMessageEl.textContent = "合言葉を入力してください";
+    setupMessageEl.classList.add("error");
+    roomCodeInput.focus();
+    return;
+  }
+  openWs({ type: "join", roomId: code });
+});
+
+copyBtn.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(shareUrlEl.value);
+    copyBtn.textContent = "コピーしました";
+    setTimeout(() => (copyBtn.textContent = "URLをコピー"), 1500);
+  } catch {
+    shareUrlEl.select();
+    document.execCommand("copy");
+  }
 });
 
 mFormEl.addEventListener("submit", (e) => {
@@ -205,3 +265,11 @@ mFormEl.addEventListener("submit", (e) => {
   if (!word || !myTurn || finished || !ws) return;
   ws.send(JSON.stringify({ type: "word", nextWord: word }));
 });
+
+// URLに ?room=合言葉 があれば、対戦タブを開いてコードを入れておく。
+const roomParam = new URLSearchParams(location.search).get("room");
+if (roomParam) {
+  document.querySelector('.tab[data-mode="multi"]').click();
+  roomCodeInput.value = roomParam.toUpperCase();
+  nameInput.focus();
+}
