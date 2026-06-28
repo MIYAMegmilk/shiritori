@@ -1,5 +1,6 @@
 import { serveDir } from "@std/http/file-server";
-import { pickInitialWord, ShiritoriGame } from "./game.js";
+import { ShiritoriGame } from "./game.js";
+import { RoomManager } from "./room.js";
 
 const PORT = Number(Deno.env.get("PORT") ?? 8000);
 
@@ -11,6 +12,10 @@ console.log(`辞書を読み込みました: ${words.length} 語`);
 
 // 一人用のゲーム状態（サーバー上に1つだけ持つシンプルな構成）。
 let game = new ShiritoriGame(dict, words);
+
+// 対戦用のルーム管理。
+const rooms = new RoomManager(dict, words);
+let nextPlayerId = 1;
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -57,8 +62,51 @@ async function handleApi(req, pathname) {
   return json({ error: true, message: "Not Found" }, 404);
 }
 
+// WebSocket接続を1人のプレイヤーとして扱う。
+function handleWebSocket(req) {
+  const { socket, response } = Deno.upgradeWebSocket(req);
+
+  const player = {
+    id: nextPlayerId++,
+    name: "プレイヤー",
+    send(message) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(message));
+      }
+    },
+  };
+
+  socket.onmessage = (e) => {
+    let data;
+    try {
+      data = JSON.parse(e.data);
+    } catch {
+      return;
+    }
+    if (data.type === "join") {
+      player.name = (data.name ?? "").trim() || "プレイヤー";
+      rooms.join(player);
+    } else if (data.type === "word") {
+      rooms.word(player, (data.nextWord ?? "").trim());
+    }
+  };
+
+  socket.onclose = () => rooms.leave(player);
+  socket.onerror = () => rooms.leave(player);
+
+  return response;
+}
+
 Deno.serve({ port: PORT }, (req) => {
   const { pathname } = new URL(req.url);
+
+  // 対戦用WebSocket
+  if (pathname === "/ws") {
+    if (req.headers.get("upgrade") !== "websocket") {
+      return new Response("WebSocketで接続してください", { status: 426 });
+    }
+    return handleWebSocket(req);
+  }
 
   if (pathname.startsWith("/api/")) {
     return handleApi(req, pathname);
