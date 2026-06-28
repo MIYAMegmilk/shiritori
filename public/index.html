@@ -11,30 +11,71 @@
     <h1>しりとり</h1>
   </header>
 
+  <!-- モード切替タブ -->
+  <nav class="tabs">
+    <button class="tab active" data-mode="single">ひとりで遊ぶ</button>
+    <button class="tab" data-mode="multi">対戦する</button>
+  </nav>
+
   <main>
-    <section id="game">
-      <!-- 直前の単語 -->
+    <!-- 一人用 -->
+    <section id="single" class="panel">
       <div class="current">
         <p class="label">今の単語</p>
         <p id="current-word" class="word">―</p>
       </div>
 
-      <!-- 入力フォーム -->
       <form id="word-form" autocomplete="off">
         <input id="word-input" type="text" placeholder="ひらがなで入力" />
         <button type="submit">送信</button>
       </form>
 
-      <!-- メッセージ（エラー・ゲームオーバー） -->
       <p id="message" class="message"></p>
 
-      <!-- 履歴 -->
       <div class="history">
         <p class="label">これまでの単語</p>
         <ol id="history"></ol>
       </div>
 
       <button id="reset-btn" type="button">リセット</button>
+    </section>
+
+    <!-- 対戦 -->
+    <section id="multi" class="panel hidden">
+      <!-- セットアップ -->
+      <div id="multi-setup">
+        <form id="match-form" autocomplete="off">
+          <input id="multi-name" type="text" placeholder="名前を入力" maxlength="12" />
+          <button type="submit">マッチング開始</button>
+        </form>
+      </div>
+
+      <!-- 待機中 -->
+      <div id="multi-waiting" class="hidden">
+        <p class="waiting">対戦相手を待っています...</p>
+      </div>
+
+      <!-- 対戦画面 -->
+      <div id="multi-game" class="hidden">
+        <p id="multi-turn" class="turn"></p>
+
+        <div class="current">
+          <p class="label">今の単語</p>
+          <p id="multi-current-word" class="word">―</p>
+        </div>
+
+        <form id="multi-form" autocomplete="off">
+          <input id="multi-input" type="text" placeholder="ひらがなで入力" />
+          <button type="submit">送信</button>
+        </form>
+
+        <p id="multi-message" class="message"></p>
+
+        <div class="history">
+          <p class="label">これまでの単語</p>
+          <ol id="multi-history"></ol>
+        </div>
+      </div>
     </section>
   </main>
 

@@ -11,6 +11,8 @@
 
 * { box-sizing: border-box; }
 
+.hidden { display: none !important; }
+
 body {
   margin: 0;
   font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
@@ -36,13 +38,79 @@ main {
   padding: 0 16px 48px;
 }
 
-#game {
+/* モード切替タブ */
+.tabs {
+  display: flex;
+  max-width: 480px;
+  margin: 0 auto 16px;
+  padding: 0 16px;
+  gap: 8px;
+}
+
+.tab {
+  flex: 1;
+  padding: 10px;
+  font-size: 0.95rem;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  cursor: pointer;
+}
+
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 700;
+}
+
+.panel {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
+
+/* 対戦のターン表示・待機 */
+.turn {
+  text-align: center;
+  margin: 0 0 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.turn.active-turn { color: var(--accent); }
+
+.waiting {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px 0;
+}
+
+#multi-name {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+#multi-name:focus { outline: none; border-color: var(--accent); }
+
+#match-form button {
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#match-form button:hover { background: var(--accent-dark); }
 
 .label {
   margin: 0 0 4px;
@@ -62,13 +130,15 @@ main {
   color: var(--accent);
 }
 
-#word-form {
+#word-form,
+#multi-form {
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
 }
 
-#word-input {
+#word-input,
+#multi-input {
   flex: 1;
   padding: 12px 14px;
   font-size: 1.1rem;
@@ -76,12 +146,14 @@ main {
   border-radius: 8px;
 }
 
-#word-input:focus {
+#word-input:focus,
+#multi-input:focus {
   outline: none;
   border-color: var(--accent);
 }
 
-#word-form button {
+#word-form button,
+#multi-form button {
   padding: 0 20px;
   font-size: 1rem;
   color: #fff;
@@ -91,8 +163,10 @@ main {
   cursor: pointer;
 }
 
-#word-form button:hover { background: var(--accent-dark); }
-#word-form button:disabled { background: var(--muted); cursor: not-allowed; }
+#word-form button:hover,
+#multi-form button:hover { background: var(--accent-dark); }
+#word-form button:disabled,
+#multi-form button:disabled { background: var(--muted); cursor: not-allowed; }
 
 .message {
   min-height: 1.6em;
@@ -108,12 +182,14 @@ main {
   overflow-y: auto;
 }
 
-#history {
+#history,
+#multi-history {
   margin: 0;
   padding-left: 1.4em;
 }
 
-#history li {
+#history li,
+#multi-history li {
   padding: 2px 0;
   font-size: 1.05rem;
 }
