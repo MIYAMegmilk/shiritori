@@ -83,11 +83,25 @@ function handleWebSocket(req) {
     } catch {
       return;
     }
-    if (data.type === "join") {
+    const setName = () => {
       player.name = (data.name ?? "").trim() || "プレイヤー";
-      rooms.join(player);
-    } else if (data.type === "word") {
-      rooms.word(player, (data.nextWord ?? "").trim());
+    };
+    switch (data.type) {
+      case "quick":  // ランダム対戦
+        setName();
+        rooms.quick(player);
+        break;
+      case "create": // 部屋を作る
+        setName();
+        rooms.create(player);
+        break;
+      case "join":   // 部屋に入る
+        setName();
+        rooms.join(player, data.roomId);
+        break;
+      case "word":
+        rooms.word(player, (data.nextWord ?? "").trim());
+        break;
     }
   };
 

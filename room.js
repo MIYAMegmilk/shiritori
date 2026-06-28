@@ -3,21 +3,43 @@
 // プレイヤーは { id, name, send(message) } という抽象で扱う。
 // send は1件のメッセージ(オブジェクト)を相手に届ける関数で、
 // WebSocketでもテスト用のモックでも差し替えられるようにしている。
+//
+// マッチング方式は2種類:
+//   - quick : 待っている人とランダムに当たる
+//   - create/join : 合言葉(部屋ID)で友達と当たる
 
 import { ShiritoriGame } from "./game.js";
 
-// 1つの対戦ルーム。2人のプレイヤーと1局分のゲーム状態を持つ。
+// 紛らわしい文字(0,O,1,I,L)を除いた部屋ID用の文字。
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const CODE_LENGTH = 5;
+
+// 1つの対戦ルーム。最大2人のプレイヤーと1局分のゲーム状態を持つ。
 class Room {
-  constructor(id, players, dict, words) {
+  constructor(id, dict, words) {
     this.id = id;
-    this.players = players; // [player0, player1]
-    this.game = new ShiritoriGame(dict, words);
-    this.turn = 0;          // 手番のプレイヤーのindex
+    this.dict = dict;
+    this.words = words;
+    this.players = [];
+    this.game = null;
+    this.turn = 0;
+    this.started = false;
     this.finished = false;
   }
 
-  // ゲーム開始を両者に通知する。
+  isFull() {
+    return this.players.length >= 2;
+  }
+
+  // プレイヤーを追加する。2人揃ったらゲームを開始する。
+  addPlayer(player) {
+    this.players.push(player);
+    if (this.players.length === 2) this.start();
+  }
+
   start() {
+    this.game = new ShiritoriGame(this.dict, this.words);
+    this.started = true;
     const names = this.players.map((p) => p.name);
     this.players.forEach((p, i) => {
       p.send({
@@ -32,7 +54,7 @@ class Room {
 
   // 単語の提出を処理する。
   submit(player, nextWord) {
-    if (this.finished) return;
+    if (!this.started || this.finished) return;
 
     const idx = this.players.indexOf(player);
     if (idx !== this.turn) {
@@ -82,27 +104,69 @@ export class RoomManager {
   constructor(dict, words) {
     this.dict = dict;
     this.words = words;
-    this.waiting = null;        // 対戦相手を待っているプレイヤー
+    this.quickWaiting = null;   // ランダム対戦の待機者
+    this.rooms = new Map();     // roomId -> Room
     this.roomOf = new Map();    // playerId -> Room
     this.seq = 0;
   }
 
-  // プレイヤーが参加する。待機者がいればマッチング、いなければ待機させる。
-  join(player) {
-    if (this.waiting === null) {
-      this.waiting = player;
+  // 重複しない部屋IDを生成する。
+  generateId() {
+    let id;
+    do {
+      id = "";
+      for (let i = 0; i < CODE_LENGTH; i++) {
+        id += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+      }
+    } while (this.rooms.has(id));
+    return id;
+  }
+
+  // ランダム対戦。待機者がいればマッチング、いなければ待機させる。
+  quick(player) {
+    if (this.quickWaiting === null) {
+      this.quickWaiting = player;
       player.send({ type: "waiting", message: "対戦相手を待っています..." });
       return;
     }
-    if (this.waiting.id === player.id) return; // 二重join防止
+    if (this.quickWaiting.id === player.id) return;
 
-    const opponent = this.waiting;
-    this.waiting = null;
+    const opponent = this.quickWaiting;
+    this.quickWaiting = null;
 
-    const room = new Room(`room-${++this.seq}`, [opponent, player], this.dict, this.words);
-    this.roomOf.set(opponent.id, room);
+    const room = new Room(`q-${++this.seq}`, this.dict, this.words);
+    this.rooms.set(room.id, room);
+    this.assign(room, opponent);
+    this.assign(room, player);
+  }
+
+  // 部屋を作る。作成者に部屋IDを返して待機させる。
+  create(player) {
+    const room = new Room(this.generateId(), this.dict, this.words);
+    this.rooms.set(room.id, room);
+    this.assign(room, player);
+    player.send({ type: "created", roomId: room.id });
+    player.send({ type: "waiting", message: "対戦相手を待っています..." });
+  }
+
+  // 部屋IDを指定して参加する。
+  join(player, roomId) {
+    const room = this.rooms.get((roomId ?? "").toUpperCase());
+    if (!room || room.id.startsWith("q-")) {
+      player.send({ type: "error", errorCode: "ROOM_NOT_FOUND", message: "その部屋は見つかりません" });
+      return;
+    }
+    if (room.isFull() || room.started) {
+      player.send({ type: "error", errorCode: "ROOM_FULL", message: "その部屋は満員です" });
+      return;
+    }
+    this.assign(room, player);
+  }
+
+  // プレイヤーをルームに登録する。
+  assign(room, player) {
     this.roomOf.set(player.id, room);
-    room.start();
+    room.addPlayer(player);
   }
 
   // 単語提出をルームへ渡す。
@@ -117,14 +181,16 @@ export class RoomManager {
 
   // 切断・退出を処理する。待機中なら取り消し、対戦中なら相手に通知する。
   leave(player) {
-    if (this.waiting && this.waiting.id === player.id) {
-      this.waiting = null;
+    if (this.quickWaiting && this.quickWaiting.id === player.id) {
+      this.quickWaiting = null;
       return;
     }
     const room = this.roomOf.get(player.id);
     if (!room) return;
 
     for (const p of room.players) this.roomOf.delete(p.id);
+    this.rooms.delete(room.id);
+
     const opponent = room.players.find((p) => p.id !== player.id);
     if (opponent) opponent.send({ type: "opponent_left", message: "相手が切断しました" });
   }
