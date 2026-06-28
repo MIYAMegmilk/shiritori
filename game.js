@@ -17,18 +17,24 @@ export const MESSAGES = {
   ENDS_WITH_N: "「ん」で終わりました",
 };
 
-// しりとりの繋がりを判定するための末尾文字を返す。小文字は大文字へ正規化する。
+// しりとりの繋がりを判定するための末尾文字を返す。
+// 末尾の長音「ー」は直前の文字で継ぐ（例: コーヒー→「ひ」、スキー→「き」）。
+// 小文字（拗音・促音）は大文字へ正規化する。
 export function tailChar(word) {
-  const last = word.slice(-1);
+  let w = word;
+  while (w.length > 1 && w.slice(-1) === "ー") w = w.slice(0, -1);
+  const last = w.slice(-1);
   return SMALL_TO_LARGE[last] ?? last;
 }
 
-// 全ての文字がひらがな(0x3041-0x3096)かどうか。長音「ー」やカタカナはfalse。
+// しりとりで使える文字だけか判定する。ひらがな(0x3041-0x3096)と長音「ー」を許可。
+// カタカナ・漢字・記号などはfalse。先頭が「ー」の語も無効。
 export function isHiragana(word) {
-  if (word.length === 0) return false;
+  if (word.length === 0 || word[0] === "ー") return false;
   for (const ch of word) {
     const code = ch.codePointAt(0);
-    if (code < 0x3041 || code > 0x3096) return false;
+    const ok = (code >= 0x3041 && code <= 0x3096) || ch === "ー";
+    if (!ok) return false;
   }
   return true;
 }

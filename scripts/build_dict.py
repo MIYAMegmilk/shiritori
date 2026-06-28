@@ -33,7 +33,7 @@ def katakana_to_hiragana(text):
     """カタカナをひらがなに変換する。
 
     カタカナ(0x30A1-0x30F6)はコードポイント -0x60 でひらがな(0x3041-0x3096)になる。
-    長音「ー」など変換対象外の文字はそのまま残し、後段のフィルタで除外する。
+    長音「ー」はそのまま残す（コーヒー→こーひー）。
     """
     out = []
     for ch in text:
@@ -45,9 +45,12 @@ def katakana_to_hiragana(text):
     return "".join(out)
 
 
-def is_all_hiragana(text):
-    """全ての文字がひらがな(0x3041-0x3096)かどうか。長音「ー」が残っていればFalse。"""
-    return all(0x3041 <= ord(ch) <= 0x3096 for ch in text)
+def is_valid_word(text):
+    """しりとりで使える語か判定する。ひらがな(0x3041-0x3096)と長音「ー」を許可。
+    先頭が「ー」の語は無効。"""
+    if text[0] == "ー":
+        return False
+    return all(0x3041 <= ord(ch) <= 0x3096 or ch == "ー" for ch in text)
 
 
 def fetch_csv(name):
@@ -69,7 +72,7 @@ def main():
                 continue
 
             word = katakana_to_hiragana(reading)
-            if not is_all_hiragana(word):
+            if not is_valid_word(word):
                 continue
             if not (MIN_LEN <= len(word) <= MAX_LEN):
                 continue
