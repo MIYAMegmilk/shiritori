@@ -4,9 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>しりとり</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>しりとり</h1>
-  <p>準備中です。</p>
+  <header>
+    <h1>しりとり</h1>
+  </header>
+
+  <main>
+    <section id="game">
+      <!-- 直前の単語 -->
+      <div class="current">
+        <p class="label">今の単語</p>
+        <p id="current-word" class="word">―</p>
+      </div>
+
+      <!-- 入力フォーム -->
+      <form id="word-form" autocomplete="off">
+        <input id="word-input" type="text" placeholder="ひらがなで入力" />
+        <button type="submit">送信</button>
+      </form>
+
+      <!-- メッセージ（エラー・ゲームオーバー） -->
+      <p id="message" class="message"></p>
+
+      <!-- 履歴 -->
+      <div class="history">
+        <p class="label">これまでの単語</p>
+        <ol id="history"></ol>
+      </div>
+
+      <button id="reset-btn" type="button">リセット</button>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
 </body>
 </html>
