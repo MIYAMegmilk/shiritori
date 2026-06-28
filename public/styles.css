@@ -1,0 +1,136 @@
+:root {
+  --bg: #f5f7fa;
+  --card: #ffffff;
+  --accent: #2f80ed;
+  --accent-dark: #1c66d6;
+  --text: #1f2933;
+  --muted: #7b8794;
+  --error: #e02424;
+  --border: #e1e7ef;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+header {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 2rem;
+  letter-spacing: 0.1em;
+}
+
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 16px 48px;
+}
+
+#game {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.label {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.current {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.current .word {
+  margin: 0;
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+#word-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+#word-input {
+  flex: 1;
+  padding: 12px 14px;
+  font-size: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+#word-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#word-form button {
+  padding: 0 20px;
+  font-size: 1rem;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#word-form button:hover { background: var(--accent-dark); }
+#word-form button:disabled { background: var(--muted); cursor: not-allowed; }
+
+.message {
+  min-height: 1.6em;
+  margin: 0 0 16px;
+  font-size: 0.95rem;
+}
+
+.message.error { color: var(--error); }
+
+.history {
+  margin-bottom: 20px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+#history {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+#history li {
+  padding: 2px 0;
+  font-size: 1.05rem;
+}
+
+#reset-btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  font-size: 0.95rem;
+  color: var(--accent);
+  background: #fff;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#reset-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
