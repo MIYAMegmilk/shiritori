@@ -13,13 +13,15 @@
 
   <!-- モード切替タブ -->
   <nav class="tabs">
-    <button class="tab active" data-mode="single">ひとりで遊ぶ</button>
-    <button class="tab" data-mode="multi">対戦する</button>
+    <button class="tab active" data-mode="cpu">CPUと対戦</button>
+    <button class="tab" data-mode="multi">オンライン対戦</button>
   </nav>
 
   <main>
-    <!-- 一人用 -->
-    <section id="single" class="panel">
+    <!-- CPU対戦 -->
+    <section id="cpu" class="panel">
+      <p id="cpu-status" class="turn"></p>
+
       <div class="current">
         <p class="label">今の単語</p>
         <p id="current-word" class="word">―</p>

@@ -275,6 +275,17 @@ main {
   font-size: 1.05rem;
 }
 
+/* 履歴の「誰の単語か」タグ */
+.history .tag {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 1px 8px;
+  vertical-align: middle;
+}
+
 #reset-btn {
   display: block;
   width: 100%;

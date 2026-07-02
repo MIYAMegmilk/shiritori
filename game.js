@@ -69,6 +69,36 @@ export function pickInitialWord(words) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+// 先頭文字 → 単語リスト の索引を作る（CPUが次の手を高速に探すため）。
+export function buildFirstCharIndex(words) {
+  const index = new Map();
+  for (const w of words) {
+    const list = index.get(w[0]);
+    if (list) list.push(w);
+    else index.set(w[0], [w]);
+  }
+  return index;
+}
+
+// CPUの次の一手を選ぶ。
+// 「ん」で終わらない単語を優先し、それしか無ければ「ん」で終わる単語を出して負ける。
+// 候補が全く無ければ降参(NO_WORD)。
+// 戻り値: { word, lose, reason }
+export function pickCpuWord(previousWord, history, index) {
+  const candidates = index.get(tailChar(previousWord)) ?? [];
+  const used = new Set(history);
+  const safe = [];
+  const losing = [];
+  for (const w of candidates) {
+    if (used.has(w)) continue;
+    (tailChar(w) === "ん" ? losing : safe).push(w);
+  }
+  const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  if (safe.length > 0) return { word: pick(safe), lose: false, reason: null };
+  if (losing.length > 0) return { word: pick(losing), lose: true, reason: "ENDS_WITH_N" };
+  return { word: null, lose: true, reason: "NO_WORD" };
+}
+
 // ゲーム1局分の状態を持つ。一人用・対戦の両方で使う。
 export class ShiritoriGame {
   constructor(dict, words, firstWord) {

@@ -1,9 +1,9 @@
-// app.js — しりとりのフロントエンド（一人用 + 対戦）
+// app.js — しりとりのフロントエンド（CPU対戦 + オンライン対戦）
 
 // ===== モード切替タブ =====
 const tabs = document.querySelectorAll(".tab");
 const panels = {
-  single: document.getElementById("single"),
+  cpu: document.getElementById("cpu"),
   multi: document.getElementById("multi"),
 };
 tabs.forEach((tab) => {
@@ -11,7 +11,7 @@ tabs.forEach((tab) => {
     tabs.forEach((t) => t.classList.remove("active"));
     tab.classList.add("active");
     const mode = tab.dataset.mode;
-    panels.single.classList.toggle("hidden", mode !== "single");
+    panels.cpu.classList.toggle("hidden", mode !== "cpu");
     panels.multi.classList.toggle("hidden", mode !== "multi");
   });
 });
@@ -22,7 +22,9 @@ const REASON_TEXT = {
   DUPLICATE: "すでに使われた単語です",
 };
 
-// ===== 一人用 =====
+// ===== CPU対戦 =====
+// 履歴はクライアントが持つ。by は "start"（初期単語）| "you" | "cpu"。
+const cpuStatusEl = document.getElementById("cpu-status");
 const currentWordEl = document.getElementById("current-word");
 const historyEl = document.getElementById("history");
 const messageEl = document.getElementById("message");
@@ -30,16 +32,23 @@ const formEl = document.getElementById("word-form");
 const inputEl = document.getElementById("word-input");
 const resetBtn = document.getElementById("reset-btn");
 
-let gameOver = false;
+const BY_LABEL = { start: "スタート", you: "あなた", cpu: "CPU" };
 
-function render(previousWord, history) {
-  currentWordEl.textContent = previousWord;
-  historyEl.innerHTML = "";
-  for (const word of history) {
-    const li = document.createElement("li");
-    li.textContent = word;
-    historyEl.appendChild(li);
-  }
+let cpuHistory = [];      // {word, by} の配列
+let cpuFinished = false;
+let cpuBusy = false;      // CPUが考え中（入力を受け付けない）
+let cpuGen = 0;           // リセットで無効になった応答を捨てるための世代番号
+
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function setCpuInputEnabled(on) {
+  inputEl.disabled = !on;
+  formEl.querySelector("button").disabled = !on;
+}
+
+function setCpuStatus(text, active = false) {
+  cpuStatusEl.textContent = text;
+  cpuStatusEl.classList.toggle("active-turn", active);
 }
 
 function setMessage(text, isError = false) {
@@ -47,58 +56,111 @@ function setMessage(text, isError = false) {
   messageEl.classList.toggle("error", isError);
 }
 
-async function loadState() {
-  const res = await fetch("/api/word");
-  const data = await res.json();
-  render(data.previousWord, data.history);
+// 履歴1件分の <li> を作る（誰の単語かのタグ付き）。対戦モードと共用。
+function historyItem(word, label) {
+  const li = document.createElement("li");
+  const wordSpan = document.createElement("span");
+  wordSpan.textContent = word;
+  li.appendChild(wordSpan);
+  if (label) {
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = label;
+    li.appendChild(tag);
+  }
+  return li;
 }
 
-async function submitWord(nextWord) {
-  const res = await fetch("/api/word", {
+function renderCpu() {
+  currentWordEl.textContent = cpuHistory[cpuHistory.length - 1].word;
+  historyEl.innerHTML = "";
+  for (const entry of cpuHistory) {
+    historyEl.appendChild(historyItem(entry.word, BY_LABEL[entry.by]));
+  }
+}
+
+function endCpu(youWon, messageText) {
+  cpuFinished = true;
+  setCpuStatus(youWon ? "あなたの勝ち！" : "あなたの負け…", youWon);
+  setMessage(`${messageText} 「リセット」で再挑戦できます。`, !youWon);
+  setCpuInputEnabled(false);
+}
+
+async function startCpuGame() {
+  cpuGen++;
+  const res = await fetch("/api/cpu/start", { method: "POST" });
+  const data = await res.json();
+  cpuHistory = [{ word: data.firstWord, by: "start" }];
+  cpuFinished = false;
+  cpuBusy = false;
+  renderCpu();
+  setMessage("");
+  setCpuStatus("あなたの番です", true);
+  setCpuInputEnabled(true);
+  inputEl.value = "";
+}
+
+async function submitCpuWord(nextWord) {
+  const gen = cpuGen;
+  const res = await fetch("/api/cpu/word", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ nextWord }),
+    body: JSON.stringify({ nextWord, history: cpuHistory.map((e) => e.word) }),
   });
   const data = await res.json();
+  if (gen !== cpuGen) return; // 通信中にリセットされた
 
-  if (res.ok && data.valid) {
-    render(data.previousWord, data.history);
-    setMessage("");
-    inputEl.value = "";
+  if (!res.ok) {
+    if (data.gameOver) {
+      endCpu(false, `「${nextWord}」…${data.message}。`);
+    } else {
+      setMessage(data.message, true);
+    }
     return;
   }
 
-  setMessage(data.message, true);
-  if (data.gameOver) {
-    gameOver = true;
-    inputEl.disabled = true;
-    formEl.querySelector("button").disabled = true;
-    setMessage(`${data.message} ゲームオーバー！「リセット」で再挑戦できます。`, true);
-  }
-}
-
-async function reset() {
-  const res = await fetch("/api/reset", { method: "POST" });
-  const data = await res.json();
-  render(data.previousWord, data.history);
-  setMessage("");
-  gameOver = false;
-  inputEl.disabled = false;
+  // 自分の単語が通った
+  cpuHistory.push({ word: nextWord, by: "you" });
   inputEl.value = "";
-  formEl.querySelector("button").disabled = false;
-  inputEl.focus();
+  renderCpu();
+  setMessage("");
+
+  // CPUの手番（考えている風の間を置く）
+  cpuBusy = true;
+  setCpuInputEnabled(false);
+  setCpuStatus("コンピュータが考えています…");
+  await delay(500 + Math.random() * 700);
+  if (gen !== cpuGen) return;
+  cpuBusy = false;
+
+  if (data.cpuWord) {
+    cpuHistory.push({ word: data.cpuWord, by: "cpu" });
+    renderCpu();
+  }
+
+  if (data.cpuGameOver) {
+    if (data.reason === "NO_WORD") {
+      endCpu(true, "コンピュータは続く単語を思いつきませんでした！");
+    } else {
+      endCpu(true, `コンピュータが「${data.cpuWord}」…「ん」で終わりました！`);
+    }
+  } else {
+    setCpuStatus("あなたの番です", true);
+    setCpuInputEnabled(true);
+    inputEl.focus();
+  }
 }
 
 formEl.addEventListener("submit", (e) => {
   e.preventDefault();
   const word = inputEl.value.trim();
-  if (!word || gameOver) return;
-  submitWord(word);
+  if (!word || cpuFinished || cpuBusy) return;
+  submitCpuWord(word);
 });
 
-resetBtn.addEventListener("click", reset);
+resetBtn.addEventListener("click", startCpuGame);
 
-loadState();
+startCpuGame();
 
 // ===== 対戦 =====
 const nameInput = document.getElementById("multi-name");

@@ -1,5 +1,5 @@
 import { serveDir } from "@std/http/file-server";
-import { ShiritoriGame } from "./game.js";
+import { buildFirstCharIndex, pickCpuWord, pickInitialWord, validateWord } from "./game.js";
 import { RoomManager } from "./room.js";
 
 const PORT = Number(Deno.env.get("PORT") ?? 8000);
@@ -8,10 +8,8 @@ const PORT = Number(Deno.env.get("PORT") ?? 8000);
 const dictText = await Deno.readTextFile(new URL("./dict/words.txt", import.meta.url));
 const words = dictText.split(/\r?\n/).filter(Boolean);
 const dict = new Set(words);
+const firstCharIndex = buildFirstCharIndex(words);
 console.log(`辞書を読み込みました: ${words.length} 語`);
-
-// 一人用のゲーム状態（サーバー上に1つだけ持つシンプルな構成）。
-let game = new ShiritoriGame(dict, words);
 
 // 対戦用のルーム管理。
 const rooms = new RoomManager(dict, words);
@@ -24,33 +22,43 @@ function json(data, status = 200) {
   });
 }
 
+// CPU対戦のAPI。ゲームの履歴はクライアントが持ち、
+// サーバーは「プレイヤーの単語の検証」と「CPUの返答」だけを担当する（ステートレス）。
 async function handleApi(req, pathname) {
-  // 現在の単語と履歴を返す
-  if (pathname === "/api/word" && req.method === "GET") {
-    return json({ previousWord: game.previousWord, history: game.history });
+  // 新しいゲームを開始する（ランダムな最初の単語を返す）
+  if (pathname === "/api/cpu/start" && req.method === "POST") {
+    return json({ firstWord: pickInitialWord(words) });
   }
 
-  // 単語を提出して検証する
-  if (pathname === "/api/word" && req.method === "POST") {
+  // プレイヤーの単語を検証し、OKならCPUの返答を返す
+  if (pathname === "/api/cpu/word" && req.method === "POST") {
     const body = await req.json().catch(() => ({}));
     const nextWord = (body.nextWord ?? "").trim();
-    const result = game.submit(nextWord);
-    if (result.valid) {
-      return json({ previousWord: game.previousWord, history: game.history, valid: true });
+    const history = Array.isArray(body.history)
+      ? body.history.filter((w) => typeof w === "string")
+      : [];
+    if (history.length === 0) {
+      return json({ error: true, message: "historyが必要です" }, 400);
     }
-    return json({
-      error: true,
-      errorCode: result.errorCode,
-      message: result.message,
-      gameOver: result.gameOver ?? false,
-      history: game.history,
-    }, 400);
-  }
 
-  // ゲームをリセットする
-  if (pathname === "/api/reset" && req.method === "POST") {
-    game = new ShiritoriGame(dict, words);
-    return json({ previousWord: game.previousWord, history: game.history });
+    const previousWord = history[history.length - 1];
+    const result = validateWord(previousWord, nextWord, history, dict);
+    if (!result.valid) {
+      return json({
+        error: true,
+        errorCode: result.errorCode,
+        message: result.message,
+        gameOver: result.gameOver ?? false,
+      }, 400);
+    }
+
+    const cpu = pickCpuWord(nextWord, [...history, nextWord], firstCharIndex);
+    return json({
+      valid: true,
+      cpuWord: cpu.word,
+      cpuGameOver: cpu.lose,
+      reason: cpu.reason,
+    });
   }
 
   // 単語が辞書に存在するか確認する
