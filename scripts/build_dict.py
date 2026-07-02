@@ -20,6 +20,11 @@ CSV_FILES = [
     "Noun.adjv.csv",
     "Noun.adverbal.csv",
     "Noun.verbal.csv",
+    # 固有名詞（地名・人名・組織名など）もしりとりで使えるようにする
+    "Noun.proper.csv",
+    "Noun.place.csv",
+    "Noun.name.csv",
+    "Noun.org.csv",
 ]
 
 READING_COL = 11  # 12列目: 読み（カタカナ）

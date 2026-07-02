@@ -5,11 +5,19 @@ import { RoomManager } from "./room.js";
 const PORT = Number(Deno.env.get("PORT") ?? 8000);
 
 // 起動時に辞書を読み込む。ローカルはCRLF・Deno DeployはLFなので両対応で分割する。
-const dictText = await Deno.readTextFile(new URL("./dict/words.txt", import.meta.url));
-const words = dictText.split(/\r?\n/).filter(Boolean);
+// - words.txt       … IPAdicの名詞（一般＋固有）。入力の受理判定とCPUの語彙に使う
+// - words_extra.txt … NEologd由来の新語・カタカナ語。入力の受理判定にだけ使う
+//   （俗語なども含まれるため、CPUの返答には使わない）
+const readWords = async (path) => {
+  const text = await Deno.readTextFile(new URL(path, import.meta.url));
+  return text.split(/\r?\n/).filter(Boolean);
+};
+const words = await readWords("./dict/words.txt");
+const extraWords = await readWords("./dict/words_extra.txt").catch(() => []);
 const dict = new Set(words);
+for (const w of extraWords) dict.add(w);
 const firstCharIndex = buildFirstCharIndex(words);
-console.log(`辞書を読み込みました: ${words.length} 語`);
+console.log(`辞書を読み込みました: 基本 ${words.length} 語 / 追加 ${extraWords.length} 語`);
 
 // 対戦用のルーム管理。
 const rooms = new RoomManager(dict, words);

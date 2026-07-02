@@ -12,7 +12,7 @@ https://shiritori-7b1q1zpd1avc.miyamegmilk.deno.net/
 
 ### CPUと対戦
 ランダムな単語からスタートし、コンピュータと交互に単語を出し合います。
-コンピュータは約46,000語の辞書から「続けられる単語」を探して返してきます。
+コンピュータは約15万語の辞書から「続けられる単語」を探して返してきます。
 続く単語をコンピュータが思いつけなければあなたの勝ちです。
 
 ### オンライン対戦
@@ -42,7 +42,7 @@ https://shiritori-7b1q1zpd1avc.miyamegmilk.deno.net/
 ## 実装した機能
 
 - **必須仕様**: 直前の単語の表示 / 単語の入力 / 接続判定とエラー表示 / 「ん」終わりでゲーム終了 / 既出単語でゲーム終了 / リセット
-- **辞書判定**: IPAdic（MeCabの辞書）から抽出した約46,000語のひらがな名詞リストで、実在しない単語をはじきます
+- **辞書判定**: 約75万語のひらがな名詞リストで、実在しない単語をはじきます（詳細は「辞書データについて」）
 - **CPU対戦**: サーバーが辞書から次の一手を探して返答します。「ん」で終わらない単語を優先し、それしか無ければ「ん」を出して負けます
 - **オンライン対戦**: WebSocketによるターン制の2人対戦。ランダムマッチと合言葉ルームの2方式
 - **部屋設定**: 制限時間・先手・辞書判定の有無を部屋主がカスタマイズ可能
@@ -73,9 +73,17 @@ https://shiritori-7b1q1zpd1avc.miyamegmilk.deno.net/
 
 ## 辞書データについて
 
-`dict/words.txt` は、MeCab用の形態素解析辞書 IPAdic から
-一般名詞のカタカナ読みをひらがなに変換して抽出したものです（`scripts/build_dict.py`）。
-ひらがな2〜15文字の単語だけを対象にしています。
+辞書は2層構成です。どちらもひらがな2〜15文字の名詞の読みだけを対象にしています。
+
+- `dict/words.txt`（約15万語） — MeCab用の形態素解析辞書 IPAdic の名詞
+  （一般名詞＋地名・人名などの固有名詞）から抽出（`scripts/build_dict.py`）。
+  **入力の受理判定とCPUの語彙**の両方に使います
+- `dict/words_extra.txt`（約60万語） — 新語辞書 mecab-ipadic-NEologd の種データから、
+  表層形がカナ・英数字の語（「スマホ」「アプリ」などのカタカナ語・新語）を
+  抽出（`scripts/build_extra_dict.py`）。**入力の受理判定にだけ**使います。
+  NEologdには俗語なども含まれるため、CPUの返答には使わない設計です
+
+しりとりのルールとしては伝統的な「名詞のみ」で、動詞・形容詞は使えません。
 
 ## 参考にしたWebサイト
 
@@ -83,6 +91,7 @@ https://shiritori-7b1q1zpd1avc.miyamegmilk.deno.net/
 - [Deno Deploy](https://docs.deno.com/deploy/) — デプロイ手順
 - [MDN Web Docs](https://developer.mozilla.org/ja/) — WebSocket / Web Audio API / CSSアニメーション
 - [MeCab: Yet Another Part-of-Speech and Morphological Analyzer](https://taku910.github.io/mecab/) — IPAdic辞書の入手元
+- [mecab-ipadic-NEologd](https://github.com/neologd/mecab-ipadic-neologd) — 新語辞書の入手元
 
 ## AIの活用について
 
