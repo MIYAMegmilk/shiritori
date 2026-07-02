@@ -44,6 +44,7 @@ class Room {
     this.started = false;
     this.finished = false;
     this.timer = null;
+    this.scores = [0, 0]; // 単語の文字数の累計（players と同じ並び）
   }
 
   isFull() {
@@ -77,6 +78,7 @@ class Room {
         settings: this.settings,
         firstWord: this.game.previousWord,
         yourTurn: i === this.turn,
+        scores: this.scores,
       });
     });
     this.startTurnTimer();
@@ -138,7 +140,8 @@ class Room {
       return;
     }
 
-    // 成功 → 手番を交代して両者に更新を通知
+    // 成功 → 得点を加算し、手番を交代して両者に更新を通知
+    this.scores[idx] += nextWord.length;
     this.turn = 1 - this.turn;
     this.players.forEach((p, i) => {
       p.send({
@@ -147,6 +150,7 @@ class Room {
         history: this.game.history,
         yourTurn: i === this.turn,
         lastPlayer: player.name,
+        scores: this.scores,
       });
     });
     this.startTurnTimer();

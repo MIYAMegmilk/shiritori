@@ -57,8 +57,8 @@ function setMessage(text, isError = false) {
   messageEl.classList.toggle("error", isError);
 }
 
-// 履歴1件分の <li> を作る（誰の単語かのタグ付き）。対戦モードと共用。
-function historyItem(word, label) {
+// 履歴1件分の <li> を作る（誰の単語かのタグと得点付き）。対戦モードと共用。
+function historyItem(word, label, points = 0) {
   const li = document.createElement("li");
   const wordSpan = document.createElement("span");
   wordSpan.textContent = word;
@@ -69,15 +69,30 @@ function historyItem(word, label) {
     tag.textContent = label;
     li.appendChild(tag);
   }
+  if (points > 0) {
+    const pts = document.createElement("span");
+    pts.className = "pts";
+    pts.textContent = `+${points}`;
+    li.appendChild(pts);
+  }
   return li;
 }
+
+const cpuScoreYouEl = document.getElementById("cpu-score-you");
+const cpuScoreCpuEl = document.getElementById("cpu-score-cpu");
 
 function renderCpu() {
   currentWordEl.textContent = cpuHistory[cpuHistory.length - 1].word;
   historyEl.innerHTML = "";
+  // スコア = 自分／CPUが出した単語の文字数の累計
+  const scores = { you: 0, cpu: 0 };
   for (const entry of cpuHistory) {
-    historyEl.appendChild(historyItem(entry.word, BY_LABEL[entry.by]));
+    const points = entry.by === "start" ? 0 : entry.word.length;
+    if (points > 0) scores[entry.by] += points;
+    historyEl.appendChild(historyItem(entry.word, BY_LABEL[entry.by], points));
   }
+  cpuScoreYouEl.textContent = `${scores.you}点`;
+  cpuScoreCpuEl.textContent = `${scores.cpu}点`;
 }
 
 function endCpu(youWon, messageText) {
@@ -184,6 +199,10 @@ const mFormEl = document.getElementById("multi-form");
 const mInputEl = document.getElementById("multi-input");
 const mMessageEl = document.getElementById("multi-message");
 const mHistoryEl = document.getElementById("multi-history");
+const mScoreNameYouEl = document.getElementById("multi-score-name-you");
+const mScoreNameOppEl = document.getElementById("multi-score-name-opp");
+const mScoreYouEl = document.getElementById("multi-score-you");
+const mScoreOppEl = document.getElementById("multi-score-opp");
 const settingTimeEl = document.getElementById("setting-time");
 const settingFirstEl = document.getElementById("setting-first");
 const settingDictEl = document.getElementById("setting-dict");
@@ -195,6 +214,8 @@ const timerTextEl = document.getElementById("timer-text");
 let ws = null;
 let myTurn = false;
 let finished = false;
+let myIdx = 0;         // 自分が players の何番目か（startメッセージで確定）
+let firstMoverIdx = 0; // 最初に手番だった側。履歴の何番目を誰が出したかの判定に使う
 
 const show = (el, visible) => el.classList.toggle("hidden", !visible);
 
@@ -238,11 +259,21 @@ function setMyTurn(yourTurn) {
 function renderMulti(previousWord, history) {
   mCurrentEl.textContent = previousWord;
   mHistoryEl.innerHTML = "";
-  for (const word of history) {
-    const li = document.createElement("li");
-    li.textContent = word;
-    mHistoryEl.appendChild(li);
-  }
+  // 履歴の1語目は初期単語、以降は最初の手番から交互に出している
+  history.forEach((word, i) => {
+    if (i === 0) {
+      mHistoryEl.appendChild(historyItem(word, "スタート"));
+      return;
+    }
+    const idx = (firstMoverIdx + i - 1) % 2;
+    mHistoryEl.appendChild(historyItem(word, idx === myIdx ? "あなた" : "相手", word.length));
+  });
+}
+
+function renderMultiScores(scores) {
+  if (!scores) return;
+  mScoreYouEl.textContent = `${scores[myIdx]}点`;
+  mScoreOppEl.textContent = `${scores[1 - myIdx]}点`;
 }
 
 function endMulti(turnText, messageText) {
@@ -280,6 +311,12 @@ function handleServerMessage(msg) {
         `制限時間: ${timeLimitSec ? `${timeLimitSec}秒` : "なし"}`,
         `辞書判定: ${s.dictCheck === false ? "なし" : "あり"}`,
       ].join(" ／ ");
+      // スコア表示の名前と、履歴のタグ判定に使う情報を覚えておく
+      myIdx = msg.you ?? 0;
+      firstMoverIdx = msg.yourTurn ? myIdx : 1 - myIdx;
+      mScoreNameYouEl.textContent = "あなた";
+      mScoreNameOppEl.textContent = msg.players?.[1 - myIdx] || "相手";
+      renderMultiScores(msg.scores);
       renderMulti(msg.firstWord, [msg.firstWord]);
       setMyTurn(msg.yourTurn);
       startCountdown();
@@ -288,6 +325,7 @@ function handleServerMessage(msg) {
     case "update":
       mMessageEl.textContent = "";
       renderMulti(msg.previousWord, msg.history);
+      renderMultiScores(msg.scores);
       setMyTurn(msg.yourTurn);
       mInputEl.value = "";
       startCountdown();

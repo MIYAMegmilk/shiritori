@@ -22,6 +22,18 @@
     <section id="cpu" class="panel">
       <p id="cpu-status" class="turn"></p>
 
+      <!-- スコア（単語の文字数の累計） -->
+      <div class="scores">
+        <div class="score you">
+          <span class="score-name">あなた</span>
+          <span id="cpu-score-you" class="score-pts">0点</span>
+        </div>
+        <div class="score">
+          <span class="score-name">CPU</span>
+          <span id="cpu-score-cpu" class="score-pts">0点</span>
+        </div>
+      </div>
+
       <div class="current">
         <p class="label">今の単語</p>
         <p id="current-word" class="word">―</p>
@@ -117,6 +129,18 @@
         <div id="timer" class="timer hidden">
           <div class="timer-track"><div id="timer-fill" class="timer-fill"></div></div>
           <span id="timer-text" class="timer-text"></span>
+        </div>
+
+        <!-- スコア（単語の文字数の累計） -->
+        <div class="scores">
+          <div class="score you">
+            <span id="multi-score-name-you" class="score-name">あなた</span>
+            <span id="multi-score-you" class="score-pts">0点</span>
+          </div>
+          <div class="score">
+            <span id="multi-score-name-opp" class="score-name">相手</span>
+            <span id="multi-score-opp" class="score-pts">0点</span>
+          </div>
         </div>
 
         <div class="current">
