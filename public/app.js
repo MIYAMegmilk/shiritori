@@ -62,6 +62,36 @@ function animate(el, className) {
   el.classList.add(className);
 }
 
+// ===== しりとりの末尾文字（サーバー側 game.js と同じルール） =====
+// 「つぎは「◯」から」のヒント表示に使う。
+const SMALL_TO_LARGE = {
+  "ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お",
+  "ゃ": "や", "ゅ": "ゆ", "ょ": "よ", "っ": "つ",
+};
+
+function tailChar(word) {
+  let w = word;
+  while (w.length > 1 && w.slice(-1) === "ー") w = w.slice(0, -1);
+  const last = w.slice(-1);
+  return SMALL_TO_LARGE[last] ?? last;
+}
+
+// ヒント表示を更新する（拗音・長音ルールをさりげなく伝える）。
+function renderHint(el, word) {
+  el.innerHTML = "";
+  el.appendChild(document.createTextNode("つぎは「"));
+  const strong = document.createElement("strong");
+  strong.textContent = tailChar(word);
+  el.appendChild(strong);
+  el.appendChild(document.createTextNode("」から"));
+}
+
+// 履歴のスクロール位置を最新（最下部）に合わせる。
+function scrollHistoryToBottom(listEl) {
+  const box = listEl.parentElement; // .history がスクロールコンテナ
+  box.scrollTop = box.scrollHeight;
+}
+
 // ===== モード切替タブ =====
 const tabs = document.querySelectorAll(".tab");
 const panels = {
@@ -142,10 +172,14 @@ function historyItem(word, label, points = 0) {
 
 const cpuScoreYouEl = document.getElementById("cpu-score-you");
 const cpuScoreCpuEl = document.getElementById("cpu-score-cpu");
+const cpuHintEl = document.getElementById("next-hint");
+const cpuHistoryLabelEl = document.getElementById("history-label");
 
 function renderCpu() {
-  currentWordEl.textContent = cpuHistory[cpuHistory.length - 1].word;
+  const current = cpuHistory[cpuHistory.length - 1].word;
+  currentWordEl.textContent = current;
   animate(currentWordEl, "pop");
+  renderHint(cpuHintEl, current);
   historyEl.innerHTML = "";
   // スコア = 自分／CPUが出した単語の文字数の累計
   const scores = { you: 0, cpu: 0 };
@@ -155,17 +189,20 @@ function renderCpu() {
     historyEl.appendChild(historyItem(entry.word, BY_LABEL[entry.by], points));
   }
   historyEl.lastElementChild?.classList.add("new");
+  cpuHistoryLabelEl.textContent = `これまでの単語（${cpuHistory.length}語）`;
+  scrollHistoryToBottom(historyEl);
   cpuScoreYouEl.textContent = `${scores.you}点`;
   cpuScoreCpuEl.textContent = `${scores.cpu}点`;
 }
 
 function endCpu(youWon, messageText) {
   cpuFinished = true;
-  setCpuStatus(youWon ? "あなたの勝ち！" : "あなたの負け…", youWon);
+  setCpuStatus(youWon ? "あなたの勝ち！🎉" : "あなたの負け…", youWon);
   animate(cpuStatusEl, "result");
   sound.play(youWon ? "win" : "lose");
   setMessage(`${messageText} 「リセット」で再挑戦できます。`, !youWon);
   setCpuInputEnabled(false);
+  cpuHintEl.textContent = "";
 }
 
 async function startCpuGame() {
@@ -180,6 +217,7 @@ async function startCpuGame() {
   setCpuStatus("あなたの番です", true);
   setCpuInputEnabled(true);
   inputEl.value = "";
+  inputEl.focus();
 }
 
 async function submitCpuWord(nextWord) {
@@ -268,6 +306,8 @@ const mFormEl = document.getElementById("multi-form");
 const mInputEl = document.getElementById("multi-input");
 const mMessageEl = document.getElementById("multi-message");
 const mHistoryEl = document.getElementById("multi-history");
+const mHintEl = document.getElementById("multi-next-hint");
+const mHistoryLabelEl = document.getElementById("multi-history-label");
 const mScoreNameYouEl = document.getElementById("multi-score-name-you");
 const mScoreNameOppEl = document.getElementById("multi-score-name-opp");
 const mScoreYouEl = document.getElementById("multi-score-you");
@@ -327,12 +367,15 @@ function setMyTurn(yourTurn) {
   myTurn = yourTurn;
   mTurnEl.textContent = yourTurn ? "あなたの番です" : "相手の番です";
   mTurnEl.classList.toggle("active-turn", yourTurn);
+  mTurnEl.classList.remove("result");
   mInputEl.disabled = !yourTurn;
   mFormEl.querySelector("button").disabled = !yourTurn;
+  if (yourTurn) mInputEl.focus();
 }
 
 function renderMulti(previousWord, history) {
   mCurrentEl.textContent = previousWord;
+  renderHint(mHintEl, previousWord);
   mHistoryEl.innerHTML = "";
   // 履歴の1語目は初期単語、以降は最初の手番から交互に出している
   history.forEach((word, i) => {
@@ -344,6 +387,8 @@ function renderMulti(previousWord, history) {
     mHistoryEl.appendChild(historyItem(word, idx === myIdx ? "あなた" : "相手", word.length));
   });
   if (history.length > 1) mHistoryEl.lastElementChild.classList.add("new");
+  mHistoryLabelEl.textContent = `これまでの単語（${history.length}語）`;
+  scrollHistoryToBottom(mHistoryEl);
   animate(mCurrentEl, "pop");
 }
 
@@ -362,6 +407,7 @@ function endMulti(turnText, messageText) {
   mMessageEl.textContent = messageText;
   mInputEl.disabled = true;
   mFormEl.querySelector("button").disabled = true;
+  mHintEl.textContent = "";
 }
 
 function handleServerMessage(msg) {
@@ -429,7 +475,7 @@ function handleServerMessage(msg) {
       const youLost = myTurn;
       const reason = REASON_TEXT[msg.reason] ?? msg.reason;
       endMulti(
-        youLost ? "あなたの負け…" : "あなたの勝ち！",
+        youLost ? "あなたの負け…" : "あなたの勝ち！🎉",
         msg.word ? `「${msg.word}」で${reason}` : reason,
       );
       animate(mTurnEl, "result");
