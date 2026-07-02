@@ -22,6 +22,7 @@ body {
 }
 
 header {
+  position: relative;
   text-align: center;
   padding: 24px 16px;
 }
@@ -30,6 +31,19 @@ header h1 {
   margin: 0;
   font-size: 2rem;
   letter-spacing: 0.1em;
+}
+
+/* 効果音のミュート切替 */
+.mute-btn {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  font-size: 1.3rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
 }
 
 main {
@@ -427,3 +441,40 @@ main {
   background: var(--accent);
   color: #fff;
 }
+
+/* ===== アニメーション ===== */
+
+/* 今の単語が変わったときのポップ */
+@keyframes pop {
+  from { transform: scale(1.25); opacity: 0.3; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.word.pop { animation: pop 0.25s ease; }
+
+/* エラー時に入力欄を揺らす */
+@keyframes shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60% { transform: translateX(6px); }
+}
+
+.shake { animation: shake 0.4s; }
+
+/* 履歴の最新行をすっと出す */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.history li.new { animation: slide-in 0.25s ease; }
+
+/* 勝敗表示を弾ませる */
+@keyframes result-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.turn.result { animation: result-pop 0.45s ease; }

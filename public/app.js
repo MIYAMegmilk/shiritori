@@ -1,5 +1,67 @@
 // app.js — しりとりのフロントエンド（CPU対戦 + オンライン対戦）
 
+// ===== 効果音 =====
+// 音声ファイルは使わず Web Audio API で鳴らす。
+// AudioContext はユーザー操作をきっかけに初めて作る（ブラウザの自動再生制限のため）。
+const sound = (() => {
+  let ctx = null;
+  let muted = localStorage.getItem("shiritori-muted") === "1";
+
+  function tone(freq, startDelay, duration, type = "sine", volume = 0.12) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const t = ctx.currentTime + startDelay;
+    gain.gain.setValueAtTime(volume, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + duration);
+  }
+
+  const PATTERNS = {
+    ok:    () => tone(880, 0, 0.12),
+    error: () => tone(196, 0, 0.2, "square", 0.06),
+    win:   () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, 0.18, "triangle")),
+    lose:  () => [392, 330, 262].forEach((f, i) => tone(f, i * 0.16, 0.22, "triangle")),
+    tick:  () => tone(1200, 0, 0.05, "sine", 0.05),
+  };
+
+  return {
+    get muted() { return muted; },
+    toggle() {
+      muted = !muted;
+      localStorage.setItem("shiritori-muted", muted ? "1" : "0");
+    },
+    play(name) {
+      if (muted) return;
+      try {
+        ctx ??= new (window.AudioContext ?? window.webkitAudioContext)();
+        if (ctx.state === "suspended") ctx.resume();
+        PATTERNS[name]?.();
+      } catch {
+        // 音を鳴らせない環境では黙って無視する
+      }
+    },
+  };
+})();
+
+const muteBtn = document.getElementById("mute-btn");
+const renderMuteBtn = () => (muteBtn.textContent = sound.muted ? "🔇" : "🔊");
+muteBtn.addEventListener("click", () => {
+  sound.toggle();
+  renderMuteBtn();
+});
+renderMuteBtn();
+
+// CSSアニメーションをやり直すためにクラスを付け直す。
+function animate(el, className) {
+  el.classList.remove(className);
+  void el.offsetWidth; // reflowを挟むと同じアニメーションを再生できる
+  el.classList.add(className);
+}
+
 // ===== モード切替タブ =====
 const tabs = document.querySelectorAll(".tab");
 const panels = {
@@ -83,6 +145,7 @@ const cpuScoreCpuEl = document.getElementById("cpu-score-cpu");
 
 function renderCpu() {
   currentWordEl.textContent = cpuHistory[cpuHistory.length - 1].word;
+  animate(currentWordEl, "pop");
   historyEl.innerHTML = "";
   // スコア = 自分／CPUが出した単語の文字数の累計
   const scores = { you: 0, cpu: 0 };
@@ -91,6 +154,7 @@ function renderCpu() {
     if (points > 0) scores[entry.by] += points;
     historyEl.appendChild(historyItem(entry.word, BY_LABEL[entry.by], points));
   }
+  historyEl.lastElementChild?.classList.add("new");
   cpuScoreYouEl.textContent = `${scores.you}点`;
   cpuScoreCpuEl.textContent = `${scores.cpu}点`;
 }
@@ -98,6 +162,8 @@ function renderCpu() {
 function endCpu(youWon, messageText) {
   cpuFinished = true;
   setCpuStatus(youWon ? "あなたの勝ち！" : "あなたの負け…", youWon);
+  animate(cpuStatusEl, "result");
+  sound.play(youWon ? "win" : "lose");
   setMessage(`${messageText} 「リセット」で再挑戦できます。`, !youWon);
   setCpuInputEnabled(false);
 }
@@ -131,6 +197,8 @@ async function submitCpuWord(nextWord) {
       endCpu(false, `「${nextWord}」…${data.message}。`);
     } else {
       setMessage(data.message, true);
+      sound.play("error");
+      animate(inputEl, "shake");
     }
     return;
   }
@@ -140,6 +208,7 @@ async function submitCpuWord(nextWord) {
   inputEl.value = "";
   renderCpu();
   setMessage("");
+  sound.play("ok");
 
   // CPUの手番（考えている風の間を置く）
   cpuBusy = true;
@@ -236,12 +305,18 @@ function startCountdown() {
   if (!timeLimitSec) return;
   const deadline = Date.now() + timeLimitSec * 1000;
   show(timerEl, true);
+  let lastTickSec = Infinity;
   const tick = () => {
     const remainMs = Math.max(0, deadline - Date.now());
     const secs = Math.ceil(remainMs / 1000);
     timerTextEl.textContent = `${secs}秒`;
     timerFillEl.style.width = `${(remainMs / (timeLimitSec * 1000)) * 100}%`;
     timerEl.classList.toggle("urgent", secs <= 5);
+    // 残り5秒からは1秒ごとにカチカチ鳴らす
+    if (secs <= 5 && secs > 0 && secs < lastTickSec) {
+      lastTickSec = secs;
+      sound.play("tick");
+    }
     if (remainMs <= 0) stopCountdown();
   };
   tick();
@@ -268,6 +343,8 @@ function renderMulti(previousWord, history) {
     const idx = (firstMoverIdx + i - 1) % 2;
     mHistoryEl.appendChild(historyItem(word, idx === myIdx ? "あなた" : "相手", word.length));
   });
+  if (history.length > 1) mHistoryEl.lastElementChild.classList.add("new");
+  animate(mCurrentEl, "pop");
 }
 
 function renderMultiScores(scores) {
@@ -328,6 +405,7 @@ function handleServerMessage(msg) {
       renderMultiScores(msg.scores);
       setMyTurn(msg.yourTurn);
       mInputEl.value = "";
+      sound.play("ok");
       startCountdown();
       break;
     case "error":
@@ -342,6 +420,8 @@ function handleServerMessage(msg) {
       } else {
         mMessageEl.textContent = msg.message;
         mMessageEl.classList.add("error");
+        sound.play("error");
+        animate(mInputEl, "shake");
       }
       break;
     case "gameover": {
@@ -352,6 +432,8 @@ function handleServerMessage(msg) {
         youLost ? "あなたの負け…" : "あなたの勝ち！",
         msg.word ? `「${msg.word}」で${reason}` : reason,
       );
+      animate(mTurnEl, "result");
+      sound.play(youLost ? "lose" : "win");
       break;
     }
     case "opponent_left":
