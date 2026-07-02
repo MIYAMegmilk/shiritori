@@ -49,10 +49,42 @@
         <input id="multi-name" type="text" placeholder="名前を入力" maxlength="12" />
 
         <button type="button" id="quick-btn" class="primary-btn">さっと対戦（ランダム）</button>
+        <p class="note">制限時間30秒・先手はランダムです</p>
 
         <p class="divider">または 合言葉で友達と対戦</p>
 
         <input id="custom-code" type="text" placeholder="合言葉（任意・空欄でランダム）" maxlength="12" />
+
+        <!-- 部屋の設定（部屋を作る人が決められる） -->
+        <div class="room-settings">
+          <p class="label">部屋の設定</p>
+          <div class="setting-row">
+            <label for="setting-time">制限時間</label>
+            <select id="setting-time">
+              <option value="0">なし</option>
+              <option value="10">10秒</option>
+              <option value="20">20秒</option>
+              <option value="30" selected>30秒</option>
+              <option value="60">60秒</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label for="setting-first">先手</label>
+            <select id="setting-first">
+              <option value="random" selected>ランダム</option>
+              <option value="host">自分</option>
+              <option value="guest">相手</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label for="setting-dict">辞書判定</label>
+            <select id="setting-dict">
+              <option value="on" selected>あり（実在する単語のみ）</option>
+              <option value="off">なし（なんでもOK）</option>
+            </select>
+          </div>
+        </div>
+
         <button type="button" id="create-btn" class="sub-btn">部屋を作る</button>
 
         <form id="join-form" autocomplete="off" class="join-row">
@@ -78,7 +110,14 @@
 
       <!-- 対戦画面 -->
       <div id="multi-game" class="hidden">
+        <p id="multi-settings-info" class="settings-info"></p>
         <p id="multi-turn" class="turn"></p>
+
+        <!-- 制限時間ありの部屋だけ表示 -->
+        <div id="timer" class="timer hidden">
+          <div class="timer-track"><div id="timer-fill" class="timer-fill"></div></div>
+          <span id="timer-text" class="timer-text"></span>
+        </div>
 
         <div class="current">
           <p class="label">今の単語</p>

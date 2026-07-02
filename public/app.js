@@ -16,10 +16,11 @@ tabs.forEach((tab) => {
   });
 });
 
-// 「ん」終わり・重複の説明文
+// ゲーム終了理由の説明文
 const REASON_TEXT = {
   ENDS_WITH_N: "「ん」で終わりました",
   DUPLICATE: "すでに使われた単語です",
+  TIME_UP: "時間切れです",
 };
 
 // ===== CPU対戦 =====
@@ -183,12 +184,48 @@ const mFormEl = document.getElementById("multi-form");
 const mInputEl = document.getElementById("multi-input");
 const mMessageEl = document.getElementById("multi-message");
 const mHistoryEl = document.getElementById("multi-history");
+const settingTimeEl = document.getElementById("setting-time");
+const settingFirstEl = document.getElementById("setting-first");
+const settingDictEl = document.getElementById("setting-dict");
+const settingsInfoEl = document.getElementById("multi-settings-info");
+const timerEl = document.getElementById("timer");
+const timerFillEl = document.getElementById("timer-fill");
+const timerTextEl = document.getElementById("timer-text");
 
 let ws = null;
 let myTurn = false;
 let finished = false;
 
 const show = (el, visible) => el.classList.toggle("hidden", !visible);
+
+// ===== ターンの残り時間表示 =====
+// 実際の時間切れ判定はサーバーが行い、ここでは見た目のカウントダウンだけを担当する。
+let timeLimitSec = 0;
+let countdownId = null;
+
+function stopCountdown() {
+  if (countdownId !== null) {
+    clearInterval(countdownId);
+    countdownId = null;
+  }
+}
+
+function startCountdown() {
+  stopCountdown();
+  if (!timeLimitSec) return;
+  const deadline = Date.now() + timeLimitSec * 1000;
+  show(timerEl, true);
+  const tick = () => {
+    const remainMs = Math.max(0, deadline - Date.now());
+    const secs = Math.ceil(remainMs / 1000);
+    timerTextEl.textContent = `${secs}秒`;
+    timerFillEl.style.width = `${(remainMs / (timeLimitSec * 1000)) * 100}%`;
+    timerEl.classList.toggle("urgent", secs <= 5);
+    if (remainMs <= 0) stopCountdown();
+  };
+  tick();
+  countdownId = setInterval(tick, 100);
+}
 
 function setMyTurn(yourTurn) {
   myTurn = yourTurn;
@@ -210,6 +247,8 @@ function renderMulti(previousWord, history) {
 
 function endMulti(turnText, messageText) {
   finished = true;
+  stopCountdown();
+  show(timerEl, false);
   mTurnEl.textContent = turnText;
   mTurnEl.classList.remove("active-turn");
   mMessageEl.textContent = messageText;
@@ -230,18 +269,28 @@ function handleServerMessage(msg) {
     case "waiting":
       show(waitingEl, true);
       break;
-    case "start":
+    case "start": {
       show(waitingEl, false);
       show(mGameEl, true);
       mMessageEl.textContent = "";
+      // 部屋の設定を表示し、制限時間ありならカウントダウンを始める
+      const s = msg.settings ?? {};
+      timeLimitSec = s.timeLimitSec ?? 0;
+      settingsInfoEl.textContent = [
+        `制限時間: ${timeLimitSec ? `${timeLimitSec}秒` : "なし"}`,
+        `辞書判定: ${s.dictCheck === false ? "なし" : "あり"}`,
+      ].join(" ／ ");
       renderMulti(msg.firstWord, [msg.firstWord]);
       setMyTurn(msg.yourTurn);
+      startCountdown();
       break;
+    }
     case "update":
       mMessageEl.textContent = "";
       renderMulti(msg.previousWord, msg.history);
       setMyTurn(msg.yourTurn);
       mInputEl.value = "";
+      startCountdown();
       break;
     case "error":
       if (mGameEl.classList.contains("hidden")) {
@@ -258,12 +307,12 @@ function handleServerMessage(msg) {
       }
       break;
     case "gameover": {
-      // 自分の手番中に終了した側が負け（「ん」終わり・重複を出した本人）
+      // 手番中に終了した側が負け（「ん」終わり・重複・時間切れを出した本人）
       const youLost = myTurn;
       const reason = REASON_TEXT[msg.reason] ?? msg.reason;
       endMulti(
         youLost ? "あなたの負け…" : "あなたの勝ち！",
-        `「${msg.word}」で${reason}`,
+        msg.word ? `「${msg.word}」で${reason}` : reason,
       );
       break;
     }
@@ -295,7 +344,13 @@ function openWs(initialMessage) {
 quickBtn.addEventListener("click", () => openWs({ type: "quick" }));
 createBtn.addEventListener("click", () => {
   const custom = customCodeInput.value.trim();
-  openWs(custom ? { type: "create", roomId: custom } : { type: "create" });
+  // 部屋主が決めた設定を添えて部屋を作る
+  const settings = {
+    timeLimitSec: Number(settingTimeEl.value),
+    firstTurn: settingFirstEl.value,
+    dictCheck: settingDictEl.value !== "off",
+  };
+  openWs({ type: "create", roomId: custom || undefined, settings });
 });
 
 joinForm.addEventListener("submit", (e) => {

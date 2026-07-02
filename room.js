@@ -14,17 +14,36 @@ import { ShiritoriGame } from "./game.js";
 const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 5;
 
+// 部屋設定として選べる値。
+const TIME_LIMITS = [0, 10, 20, 30, 60]; // 0 = 制限なし
+const FIRST_TURNS = ["random", "host", "guest"];
+
+// さっと対戦（ランダムマッチ）で使う固定設定。
+export const QUICK_SETTINGS = { timeLimitSec: 30, dictCheck: true, firstTurn: "random" };
+
+// クライアントから送られた部屋設定を検証し、不正な値はデフォルトに落とす。
+export function sanitizeSettings(s = {}) {
+  return {
+    timeLimitSec: TIME_LIMITS.includes(s.timeLimitSec) ? s.timeLimitSec : 0,
+    dictCheck: s.dictCheck !== false,
+    firstTurn: FIRST_TURNS.includes(s.firstTurn) ? s.firstTurn : "random",
+  };
+}
+
 // 1つの対戦ルーム。最大2人のプレイヤーと1局分のゲーム状態を持つ。
+// settings は部屋主が決める: { timeLimitSec, dictCheck, firstTurn }
 class Room {
-  constructor(id, dict, words) {
+  constructor(id, dict, words, settings) {
     this.id = id;
     this.dict = dict;
     this.words = words;
+    this.settings = settings;
     this.players = [];
     this.game = null;
     this.turn = 0;
     this.started = false;
     this.finished = false;
+    this.timer = null;
   }
 
   isFull() {
@@ -38,17 +57,54 @@ class Room {
   }
 
   start() {
-    this.game = new ShiritoriGame(this.dict, this.words);
+    this.game = new ShiritoriGame(this.dict, this.words, undefined, {
+      dictCheck: this.settings.dictCheck,
+    });
     this.started = true;
+    // 先手: host = 部屋を作った側(players[0]) / guest = 後から入った側 / random
+    this.turn = this.settings.firstTurn === "host"
+      ? 0
+      : this.settings.firstTurn === "guest"
+      ? 1
+      : Math.floor(Math.random() * 2);
     const names = this.players.map((p) => p.name);
     this.players.forEach((p, i) => {
       p.send({
         type: "start",
         roomId: this.id,
         players: names,
+        you: i,
+        settings: this.settings,
         firstWord: this.game.previousWord,
         yourTurn: i === this.turn,
       });
+    });
+    this.startTurnTimer();
+  }
+
+  // 制限時間ありの部屋では、手番のたびにタイマーを張り直す。
+  startTurnTimer() {
+    this.clearTurnTimer();
+    if (!this.settings.timeLimitSec) return;
+    this.timer = setTimeout(() => this.timeout(), this.settings.timeLimitSec * 1000);
+  }
+
+  clearTurnTimer() {
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+  }
+
+  // 時間切れ → 手番のプレイヤーの負け。
+  timeout() {
+    if (this.finished) return;
+    this.finished = true;
+    this.broadcast({
+      type: "gameover",
+      reason: "TIME_UP",
+      loser: this.players[this.turn].name,
+      word: null,
     });
   }
 
@@ -68,6 +124,7 @@ class Room {
       if (result.gameOver) {
         // 「ん」で終わる・重複 → 提出した本人の負けでゲーム終了
         this.finished = true;
+        this.clearTurnTimer();
         this.broadcast({
           type: "gameover",
           reason: result.errorCode,
@@ -92,6 +149,7 @@ class Room {
         lastPlayer: player.name,
       });
     });
+    this.startTurnTimer();
   }
 
   broadcast(message) {
@@ -134,7 +192,7 @@ export class RoomManager {
     const opponent = this.quickWaiting;
     this.quickWaiting = null;
 
-    const room = new Room(`q-${++this.seq}`, this.dict, this.words);
+    const room = new Room(`q-${++this.seq}`, this.dict, this.words, { ...QUICK_SETTINGS });
     this.rooms.set(room.id, room);
     this.assign(room, opponent);
     this.assign(room, player);
@@ -152,8 +210,9 @@ export class RoomManager {
     return null;
   }
 
-  // 部屋を作る。合言葉を指定できる（空ならランダム生成）。作成者に部屋IDを返して待機させる。
-  create(player, roomId) {
+  // 部屋を作る。合言葉と部屋設定を指定できる（合言葉が空ならランダム生成）。
+  // 作成者に部屋IDを返して待機させる。
+  create(player, roomId, settings) {
     const requested = this.normalizeId(roomId);
     let id;
     if (requested) {
@@ -171,7 +230,7 @@ export class RoomManager {
       id = this.generateId();
     }
 
-    const room = new Room(id, this.dict, this.words);
+    const room = new Room(id, this.dict, this.words, sanitizeSettings(settings));
     this.rooms.set(id, room);
     this.assign(room, player);
     player.send({ type: "created", roomId: id });
@@ -217,6 +276,7 @@ export class RoomManager {
     const room = this.roomOf.get(player.id);
     if (!room) return;
 
+    room.clearTurnTimer();
     for (const p of room.players) this.roomOf.delete(p.id);
     this.rooms.delete(room.id);
 

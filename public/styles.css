@@ -134,6 +134,87 @@ main {
 
 #create-btn { width: 100%; margin-bottom: 10px; }
 
+.note {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 6px 0 0;
+}
+
+/* 部屋の設定（部屋主用） */
+.room-settings {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.setting-row label {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.setting-row select {
+  padding: 6px 8px;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+}
+
+.setting-row select:focus { outline: none; border-color: var(--accent); }
+
+/* 対戦画面の設定表示とターンタイマー */
+.settings-info {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin: 0 0 8px;
+}
+
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.timer-track {
+  flex: 1;
+  height: 8px;
+  background: var(--bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.timer-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.1s linear;
+}
+
+.timer-text {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 3em;
+  text-align: right;
+}
+
+.timer.urgent .timer-fill { background: var(--error); }
+.timer.urgent .timer-text { color: var(--error); }
+
 #custom-code {
   width: 100%;
   padding: 10px 14px;

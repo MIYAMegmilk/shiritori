@@ -41,14 +41,16 @@ export function isHiragana(word) {
 
 // 単語を検証する。
 // previousWord: 直前の単語 / nextWord: 入力された単語 / history: 使用済み単語の配列 / dict: 単語のSet
+// opts.dictCheck: false にすると辞書チェックを行わない（部屋設定「辞書判定なし」用）
 // 戻り値: { valid: true } または { valid: false, errorCode, message, gameOver }
-export function validateWord(previousWord, nextWord, history, dict) {
+export function validateWord(previousWord, nextWord, history, dict, opts = {}) {
+  const { dictCheck = true } = opts;
   // 1. ひらがなのみか
   if (!isHiragana(nextWord)) return fail("NOT_HIRAGANA");
   // 2. 2文字以上か
   if (nextWord.length < 2) return fail("TOO_SHORT");
   // 3. 辞書に存在するか
-  if (!dict.has(nextWord)) return fail("NOT_IN_DICT");
+  if (dictCheck && !dict.has(nextWord)) return fail("NOT_IN_DICT");
   // 4. 前の単語の末尾と先頭が繋がるか
   if (nextWord[0] !== tailChar(previousWord)) return fail("NOT_CONNECTED");
   // 5. 過去に使われていないか → 使われていたらゲーム終了
@@ -99,11 +101,12 @@ export function pickCpuWord(previousWord, history, index) {
   return { word: null, lose: true, reason: "NO_WORD" };
 }
 
-// ゲーム1局分の状態を持つ。一人用・対戦の両方で使う。
+// ゲーム1局分の状態を持つ。CPU対戦・オンライン対戦の両方で使う。
 export class ShiritoriGame {
-  constructor(dict, words, firstWord) {
+  constructor(dict, words, firstWord, opts = {}) {
     this.dict = dict;           // 検索用Set
     this.words = words;         // 初期単語選択用の配列
+    this.opts = opts;           // 検証オプション（dictCheckなど）
     this.history = [firstWord ?? pickInitialWord(words)];
     this.finished = false;
   }
@@ -117,7 +120,7 @@ export class ShiritoriGame {
     if (this.finished) {
       return { valid: false, errorCode: "FINISHED", message: "ゲームは終了しています", gameOver: true };
     }
-    const result = validateWord(this.previousWord, nextWord, this.history, this.dict);
+    const result = validateWord(this.previousWord, nextWord, this.history, this.dict, this.opts);
     if (result.valid) {
       this.history.push(nextWord);
     } else if (result.gameOver) {

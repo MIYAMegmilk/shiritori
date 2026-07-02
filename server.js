@@ -99,9 +99,9 @@ function handleWebSocket(req) {
         setName();
         rooms.quick(player);
         break;
-      case "create": // 部屋を作る（合言葉は任意）
+      case "create": // 部屋を作る（合言葉は任意・部屋設定は部屋主が指定）
         setName();
-        rooms.create(player, data.roomId);
+        rooms.create(player, data.roomId, data.settings);
         break;
       case "join":   // 部屋に入る
         setName();
