@@ -6,7 +6,7 @@ jig.jpサマーインターンシップ2026 Webコース選考課題として制
 
 ## デプロイ先URL
 
-https://DEPLOY-URL-HERE.deno.dev/
+https://shiritori-7b1q1zpd1avc.miyamegmilk.deno.net/
 
 ## 遊び方
 
